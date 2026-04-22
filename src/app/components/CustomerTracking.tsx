@@ -9,7 +9,7 @@ import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { Package, MapPin, Plane, Building2, Truck, CheckCircle2, Search, Bell, Plus, Trash2, Edit } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface CustomerTrackingProps {
   user: any;
