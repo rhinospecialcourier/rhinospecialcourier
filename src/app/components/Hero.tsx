@@ -54,7 +54,7 @@ export function Hero() {
             </h1>
 
             <p className="text-muted-foreground mb-8" style={{ fontSize: '1.125rem' }}>
-              Traemos tus paquetes desde cualquier parte del mundo directamente a tu puerta. 
+              Traemos tus paquetes desde cualquier parte del mundo directamente a tu puerta en Colombia. 
               Tarifa competitiva, velocidad incomparable y seguridad garantizada.
             </p>
 
