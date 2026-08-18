@@ -24,7 +24,7 @@ export function Footer({ onNavigate }: FooterProps) {
               Importación rápida y segura desde cualquier parte del mundo a Colombia.
             </p>
             <div className="flex gap-3">
-              <a href="#" className="w-10 h-10 rounded-lg bg-muted hover:bg-primary/20 flex items-center justify-center transition-colors group">
+              <a href="https://www.facebook.com/share/1EKpb9RCub/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-lg bg-muted hover:bg-primary/20 flex items-center justify-center transition-colors group">
                 <Facebook className="text-muted-foreground group-hover:text-primary" size={20} />
               </a>
               <a 
@@ -36,7 +36,7 @@ export function Footer({ onNavigate }: FooterProps) {
                 <Instagram className="text-muted-foreground group-hover:text-primary" size={20} />
               </a>
               <a 
-                href="https://wa.me/573204775878" 
+                href="https://wa.me/573107767143" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-lg bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors group"

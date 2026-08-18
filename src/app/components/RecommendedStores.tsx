@@ -72,7 +72,7 @@ export function RecommendedStores({ onBack }: RecommendedStoresProps) {
             </p>
             <div className="mt-4">
               <a
-                href="https://wa.me/573204775878"
+                href="https://wa.me/573107767143"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors"

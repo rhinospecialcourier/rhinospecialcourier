@@ -6,140 +6,77 @@ import { Label } from "./ui/label";
 import { Button } from "./ui/button";
 import { Search, MapPin, Package, Plane, Truck, CheckCircle, Building2, Bell } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "../../supabase";
 
 export function Tracking() {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingData, setTrackingData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const trackPackage = () => {
+  const trackPackage = async () => {
     if (!trackingNumber) {
       toast.error("Por favor ingresa un número de tracking");
       return;
     }
 
-    // Buscar en pre-alertas reales de localStorage
-    const storedAlerts = localStorage.getItem('rhinoPreAlerts');
-    
-    if (storedAlerts) {
-      try {
-        const allAlerts = JSON.parse(storedAlerts);
-        const preAlert = allAlerts.find(
-          (alert: any) => alert.tracking_number.toUpperCase() === trackingNumber.toUpperCase()
-        );
+    setIsLoading(true);
 
-        if (preAlert) {
-          // Construir timeline según el estado de la pre-alerta
-          let completedSteps = 1; // Por defecto "Pre-Alertado"
-          let currentStatus = "Pre-Alertado";
-          let estimatedDelivery = "Pendiente de recepción";
+    const { data, error } = await supabase
+      .from("Paquetes")
+      .select("*")
+      .ilike("tracking_number", trackingNumber)
+      .single();
 
-          if (preAlert.status === "received") {
-            completedSteps = 2; // Hasta "Recibido en Miami"
-            currentStatus = "Recibido en Bodega";
-            if (preAlert.received_at) {
-              const receivedDate = new Date(preAlert.received_at);
-              const deliveryDate = new Date(receivedDate.getTime() + 6 * 24 * 60 * 60 * 1000);
-              estimatedDelivery = deliveryDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-            }
-          } else if (preAlert.status === "processed") {
-            completedSteps = 4; // Hasta "Aduanas Colombia"
-            currentStatus = "En Proceso Aduanal";
-            if (preAlert.received_at) {
-              const receivedDate = new Date(preAlert.received_at);
-              const deliveryDate = new Date(receivedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
-              estimatedDelivery = deliveryDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-            }
-          }
+    setIsLoading(false);
 
-          const timeline = [
-            { 
-              status: "Pre-Alertado", 
-              location: preAlert.origin_city, 
-              date: preAlert.created_at, 
-              completed: completedSteps >= 1, 
-              icon: Bell 
-            },
-            { 
-              status: "Recibido en Miami", 
-              location: "Miami, EE.UU.", 
-              date: preAlert.received_at || "Pendiente", 
-              completed: completedSteps >= 2, 
-              icon: Package 
-            },
-            { 
-              status: "Tránsito Internacional", 
-              location: "En Vuelo", 
-              date: completedSteps >= 3 ? "En tránsito" : "Pendiente", 
-              completed: completedSteps >= 3, 
-              icon: Plane 
-            },
-            { 
-              status: "Aduanas Colombia", 
-              location: "Bogotá, Colombia", 
-              date: completedSteps >= 4 ? "En proceso" : "Pendiente", 
-              completed: completedSteps >= 4, 
-              icon: Building2 
-            },
-            { 
-              status: "Bodega Bogotá", 
-              location: preAlert.warehouse, 
-              date: completedSteps >= 5 ? "En bodega" : "Pendiente", 
-              completed: completedSteps >= 5, 
-              icon: MapPin 
-            },
-            { 
-              status: "En Ruta", 
-              location: "Camino a tu dirección", 
-              date: completedSteps >= 6 ? "En ruta" : "Pendiente", 
-              completed: completedSteps >= 6, 
-              icon: Truck 
-            },
-            { 
-              status: "Entregado", 
-              location: "Tu Dirección", 
-              date: completedSteps >= 7 ? "Entregado" : estimatedDelivery, 
-              completed: completedSteps >= 7, 
-              icon: CheckCircle 
-            }
-          ];
-
-          setTrackingData({
-            number: trackingNumber,
-            status: currentStatus,
-            currentLocation: timeline.find(t => t.completed && !timeline[timeline.indexOf(t) + 1]?.completed)?.location || preAlert.warehouse,
-            estimatedDelivery: estimatedDelivery,
-            description: preAlert.description,
-            service: preAlert.service,
-            timeline: timeline
-          });
-
-          toast.success("Envío encontrado", {
-            description: `${preAlert.description} - ${currentStatus}`,
-            style: {
-              background: '#22c55e',
-              color: 'white',
-              border: 'none',
-            },
-            className: 'toast-success-custom',
-          });
-          return;
-        }
-      } catch (error) {
-        console.error('Error loading pre-alerts:', error);
-      }
+    if (error || !data) {
+      setTrackingData(null);
+      toast.error("Tracking no encontrado", {
+        description: "Este número de tracking no existe. Por favor verifica el número.",
+      });
+      return;
     }
 
-    // Si no se encuentra, mostrar error
-    setTrackingData(null);
-    toast.error("Tracking no encontrado", {
-      description: "Este número de tracking no ha sido pre-alertado. Por favor verifica el número o crea una pre-alerta.",
-      style: {
-        background: '#ef4444',
-        color: 'white',
-        border: 'none',
-      },
-      className: 'toast-error-custom',
+    const estadosOrden = [
+      "Pre-Alertado",
+      "Recibido en Bodega",
+      "Tránsito Internacional",
+      "Aduanas Colombia",
+      "Bodega Bogotá",
+      "En Ruta",
+      "Entregado"
+    ];
+
+    const iconos = [Bell, Package, Plane, Building2, MapPin, Truck, CheckCircle];
+    const ubicaciones = [
+      data.origen || "Origen",
+      "Miami, EE.UU.",
+      "En Vuelo",
+      "Bogotá, Colombia",
+      "Bodega Bogotá",
+      "Camino a tu dirección",
+      "Tu Dirección"
+    ];
+
+    const estadoActualIndex = estadosOrden.indexOf(data.estado);
+
+    const timeline = estadosOrden.map((estado, index) => ({
+      status: estado,
+      location: ubicaciones[index],
+      date: index <= estadoActualIndex ? (index === 0 ? data.fecha_envio : "Completado") : "Pendiente",
+      completed: index <= estadoActualIndex,
+      icon: iconos[index]
+    }));
+
+    setTrackingData({
+      number: trackingNumber,
+      status: data.estado,
+      estimatedDelivery: data.fecha_estimada || "Por confirmar",
+      description: data.descripcion,
+      timeline: timeline
     });
+
+    toast.success("Envío encontrado");
   };
 
   return (
@@ -186,8 +123,8 @@ export function Tracking() {
                       className="bg-input-background"
                       onKeyPress={(e) => e.key === 'Enter' && trackPackage()}
                     />
-                    <Button onClick={trackPackage} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                      <Search size={20} />
+                    <Button onClick={trackPackage} disabled={isLoading} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                      {isLoading ? "..." : <Search size={20} />}
                     </Button>
                   </div>
                 </div>
@@ -223,8 +160,8 @@ export function Tracking() {
                             <div className="flex gap-4">
                               <div className="relative">
                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                                  event.completed 
-                                    ? 'bg-primary/20 border-2 border-primary' 
+                                  event.completed
+                                    ? 'bg-primary/20 border-2 border-primary'
                                     : 'bg-muted border-2 border-border'
                                 }`}>
                                   <Icon className={event.completed ? 'text-primary' : 'text-muted-foreground'} size={20} />

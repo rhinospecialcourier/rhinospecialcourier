@@ -8,75 +8,71 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
-import { Package, MapPin, Plane, Building2, Truck, CheckCircle2, Search, Bell, Plus, Trash2, Edit } from "lucide-react";
+import { Package, MapPin, Plane, Building2, Truck, CheckCircle2, Search, Bell, Plus, Trash2, User, Pencil, Save, X } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "../../supabase";
 
 interface CustomerTrackingProps {
   user: any;
   onLogout: () => void;
+  onUpdateUser: (user: any) => void;
 }
 
-// Datos simulados de envíos (en producción vendrían de Supabase)
-const mockShipments = [
-  {
-    tracking: "RHI2025001",
-    status: "Entregado",
-    currentStep: 7,
-    origin: "Miami, FL",
-    destination: "Bogotá, Colombia",
-    estimatedDelivery: "2025-01-10",
-  },
-  {
-    tracking: "RHI2025002",
-    status: "En ruta",
-    currentStep: 6,
-    origin: "España, Madrid",
-    destination: "Medellín, Colombia",
-    estimatedDelivery: "2025-01-15",
-  },
+const departamentosColombia = [
+  "Amazonas", "Antioquia", "Arauca", "Atlántico", "Bogotá", "Bolívar", "Boyacá",
+  "Caldas", "Caquetá", "Casanare", "Cauca", "Cesar", "Chocó", "Córdoba",
+  "Cundinamarca", "Guainía", "Guaviare", "Huila", "La Guajira", "Magdalena",
+  "Meta", "Nariño", "Norte de Santander", "Putumayo", "Quindío", "Risaralda",
+  "San Andrés", "Santander", "Sucre", "Tolima", "Valle del Cauca", "Vaupés", "Vichada",
 ];
 
-// Datos iniciales de pre-alertas (solo para inicialización)
-const initialPreAlerts = [
-  {
-    id: "PA001",
-    tracking_number: "1Z999AA10123456784",
-    origin_city: "Miami EE.UU.",
-    description: "iPhone 15 Pro Max 256GB",
-    declared_value: 1200,
-    insured_value: 100,
-    quantity: 1,
-    warehouse: "Bogotá, Colombia",
-    service: "Courier",
-    shipping_instructions: "",
-    status: "pending", // pending, received, processed
-    created_at: "2025-01-10",
-    user_email: "demo@rhino.com", // Asociar a usuario
-  },
-  {
-    id: "PA002",
-    tracking_number: "92612901234567890",
-    origin_city: "Madrid, España",
-    description: "MacBook Air M2",
-    declared_value: 999,
-    insured_value: 200,
-    quantity: 1,
-    warehouse: "Bogotá, Colombia",
-    service: "Comercial",
-    shipping_instructions: "Entregar a María López - Calle 123 #45-67 Apto 301 - Tel: +57 300 123 4567",
-    status: "received",
-    created_at: "2025-01-08",
-    received_at: "2025-01-12",
-    user_email: "demo@rhino.com",
-  },
+const trackingSteps = [
+  { id: 1, name: "Pre-Alertado", icon: Bell, color: "primary" },
+  { id: 2, name: "Recibido en Bodega", icon: Package, color: "secondary" },
+  { id: 3, name: "Tránsito Internacional", icon: Plane, color: "primary" },
+  { id: 4, name: "Aduanas Colombia", icon: Building2, color: "secondary" },
+  { id: 5, name: "Bodega Bogotá", icon: MapPin, color: "primary" },
+  { id: 6, name: "En Ruta", icon: Truck, color: "secondary" },
+  { id: 7, name: "Entregado", icon: CheckCircle2, color: "primary" },
 ];
 
-export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
+const stepMap: Record<string, number> = {
+  "Pre-Alertado": 1,
+  "Recibido en Bodega": 2,
+  "Tránsito Internacional": 3,
+  "Aduanas Colombia": 4,
+  "Bodega Bogotá": 5,
+  "En Ruta": 6,
+  "Entregado": 7,
+};
+
+export function CustomerTracking({ user, onLogout, onUpdateUser }: CustomerTrackingProps) {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [selectedShipment, setSelectedShipment] = useState<any>(null);
   const [preAlerts, setPreAlerts] = useState<any[]>([]);
+  const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
   const [isCreatingAlert, setIsCreatingAlert] = useState(false);
-  
+  const [isSavingAlert, setIsSavingAlert] = useState(false);
+
+  // Paquetes reales del cliente (tabla Paquetes)
+  const [myPackages, setMyPackages] = useState<any[]>([]);
+  const [isLoadingPackages, setIsLoadingPackages] = useState(true);
+
+  // Perfil del cliente
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    nombre: user.nombre || "",
+    razon_social: user.razon_social || "",
+    documento: user.documento || "",
+    telefono: user.telefono || "",
+    direccion: user.direccion || "",
+    direccion_tipo: user.direccion_tipo || "",
+    ciudad: user.ciudad || "",
+    departamento: user.departamento || "",
+    codigo_postal: user.codigo_postal || "",
+  });
+
   // Form state para nueva pre-alerta
   const [newAlert, setNewAlert] = useState({
     tracking_number: "",
@@ -90,54 +86,46 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
     shipping_instructions: "",
   });
 
-  const trackingSteps = [
-    { id: 1, name: "Pre-Alertado", icon: Bell, color: "primary" },
-    { id: 2, name: "Recibido en Miami", icon: Package, color: "secondary" },
-    { id: 3, name: "Tránsito Internacional", icon: Plane, color: "primary" },
-    { id: 4, name: "Aduanas Colombia", icon: Building2, color: "secondary" },
-    { id: 5, name: "Bodega Bogotá", icon: MapPin, color: "primary" },
-    { id: 6, name: "En ruta", icon: Truck, color: "secondary" },
-    { id: 7, name: "Entregado", icon: CheckCircle2, color: "primary" },
-  ];
+  // Cargar pre-alertas desde Supabase
+  const loadPreAlerts = async () => {
+    setIsLoadingAlerts(true);
+    const { data, error } = await supabase
+      .from("prealertas")
+      .select("*")
+      .eq("user_email", user.email)
+      .order("created_at", { ascending: false });
 
-  // Cargar pre-alertas desde localStorage al montar el componente
-  useEffect(() => {
-    const storedAlerts = localStorage.getItem('rhinoPreAlerts');
-    if (storedAlerts) {
-      try {
-        const allAlerts = JSON.parse(storedAlerts);
-        // Filtrar solo las del usuario actual
-        const userAlerts = allAlerts.filter((alert: any) => alert.user_email === user.email);
-        setPreAlerts(userAlerts);
-      } catch (error) {
-        console.error('Error loading pre-alerts:', error);
-        // Si hay error, cargar las iniciales
-        const userPreAlerts = initialPreAlerts.filter(alert => alert.user_email === user.email);
-        setPreAlerts(userPreAlerts);
-      }
-    } else {
-      // Primera vez: cargar datos iniciales y guardarlos
-      localStorage.setItem('rhinoPreAlerts', JSON.stringify(initialPreAlerts));
-      const userPreAlerts = initialPreAlerts.filter(alert => alert.user_email === user.email);
-      setPreAlerts(userPreAlerts);
+    if (error) {
+      console.error("Error cargando pre-alertas:", error);
+      toast.error("No se pudieron cargar tus pre-alertas");
+    } else if (data) {
+      setPreAlerts(data);
     }
+    setIsLoadingAlerts(false);
+  };
+
+  // Cargar paquetes reales desde Supabase (tabla Paquetes)
+  const loadMyPackages = async () => {
+    setIsLoadingPackages(true);
+    const { data, error } = await supabase
+      .from("Paquetes")
+      .select("*")
+      .eq("cliente_email", user.email)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error cargando paquetes:", error);
+    } else if (data) {
+      setMyPackages(data);
+    }
+    setIsLoadingPackages(false);
+  };
+
+  useEffect(() => {
+    loadPreAlerts();
+    loadMyPackages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.email]);
-
-  // Guardar pre-alertas en localStorage cada vez que cambien
-  useEffect(() => {
-    if (preAlerts.length > 0 || localStorage.getItem('rhinoPreAlerts')) {
-      const storedAlerts = localStorage.getItem('rhinoPreAlerts');
-      let allAlerts = storedAlerts ? JSON.parse(storedAlerts) : [];
-      
-      // Eliminar pre-alertas antiguas del usuario actual
-      allAlerts = allAlerts.filter((alert: any) => alert.user_email !== user.email);
-      
-      // Agregar las pre-alertas actuales del usuario
-      allAlerts = [...allAlerts, ...preAlerts];
-      
-      localStorage.setItem('rhinoPreAlerts', JSON.stringify(allAlerts));
-    }
-  }, [preAlerts, user.email]);
 
   const handleSearch = () => {
     if (!trackingNumber) {
@@ -147,48 +135,43 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
 
     const searchTerm = trackingNumber.toUpperCase();
 
-    // Buscar primero en pre-alertas
+    // Buscar en paquetes reales
+    const realPackage = myPackages.find(
+      pkg => pkg.tracking_number?.toUpperCase() === searchTerm
+    );
+
+    if (realPackage) {
+      setSelectedShipment({
+        tracking: realPackage.tracking_number,
+        status: realPackage.estado,
+        currentStep: stepMap[realPackage.estado] || 1,
+        origin: realPackage.origen,
+        destination: "Bogotá, Colombia",
+        estimatedDelivery: realPackage.fecha_estimada || "Por confirmar",
+        description: realPackage.descripcion,
+        isPreAlert: false,
+      });
+      toast.success("Envío encontrado");
+      return;
+    }
+
+    // Buscar en pre-alertas (todavía no confirmadas por Rhino)
     const preAlert = preAlerts.find(
       alert => alert.tracking_number.toUpperCase() === searchTerm
     );
 
     if (preAlert) {
-      // Convertir pre-alerta a formato de envío para mostrar
-      let currentStep = 1; // Pre-alertado
-      let status = "Pre-Alertado";
-
-      if (preAlert.status === "received") {
-        currentStep = 2; // Recibido en bodega
-        status = "Recibido en Bodega";
-      } else if (preAlert.status === "processed") {
-        currentStep = 4; // En proceso
-        status = "En Proceso";
-      }
-
-      const shipmentFromPreAlert = {
+      setSelectedShipment({
         tracking: preAlert.tracking_number,
-        status: status,
-        currentStep: currentStep,
+        status: "Pre-Alertado",
+        currentStep: 1,
         origin: preAlert.origin_city,
         destination: preAlert.warehouse,
-        estimatedDelivery: preAlert.received_at 
-          ? new Date(new Date(preAlert.received_at).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          : "Pendiente de recepción",
+        estimatedDelivery: "Pendiente de recepción en bodega",
         description: preAlert.description,
         isPreAlert: true,
-      };
-
-      setSelectedShipment(shipmentFromPreAlert);
+      });
       toast.success(`Pre-alerta encontrada: ${preAlert.description}`);
-      return;
-    }
-
-    // Buscar en envíos simulados
-    const shipment = mockShipments.find(s => s.tracking === searchTerm);
-    
-    if (shipment) {
-      setSelectedShipment({...shipment, isPreAlert: false});
-      toast.success("Envío encontrado");
       return;
     }
 
@@ -199,36 +182,47 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
     });
   };
 
-  const handleCreatePreAlert = () => {
+  const handleCreatePreAlert = async () => {
     if (!newAlert.tracking_number || !newAlert.origin_city || !newAlert.description || !newAlert.declared_value) {
       toast.error("Por favor completa todos los campos obligatorios");
       return;
     }
 
-    // Validar valor asegurado
     const insuredValue = parseFloat(newAlert.insured_value || "0");
     if (insuredValue > 2000) {
       toast.error("El valor máximo a asegurar es $2,000 USD");
       return;
     }
 
-    const alert = {
-      id: `PA${String(preAlerts.length + 1).padStart(3, '0')}`,
-      tracking_number: newAlert.tracking_number,
-      origin_city: newAlert.origin_city,
-      description: newAlert.description,
-      declared_value: parseFloat(newAlert.declared_value),
-      insured_value: insuredValue,
-      quantity: parseInt(newAlert.quantity),
-      warehouse: newAlert.warehouse,
-      service: newAlert.service,
-      shipping_instructions: newAlert.shipping_instructions,
-      status: "pending",
-      created_at: new Date().toISOString().split('T')[0],
-      user_email: user.email,
-    };
+    setIsSavingAlert(true);
 
-    setPreAlerts([alert, ...preAlerts]);
+    const { data, error } = await supabase
+      .from("prealertas")
+      .insert([{
+        user_email: user.email,
+        tracking_number: newAlert.tracking_number,
+        origin_city: newAlert.origin_city,
+        description: newAlert.description,
+        declared_value: parseFloat(newAlert.declared_value),
+        insured_value: insuredValue,
+        quantity: parseInt(newAlert.quantity),
+        warehouse: newAlert.warehouse,
+        service: newAlert.service,
+        shipping_instructions: newAlert.shipping_instructions,
+        status: "pending",
+      }])
+      .select()
+      .single();
+
+    setIsSavingAlert(false);
+
+    if (error || !data) {
+      console.error("Error creando pre-alerta:", error);
+      toast.error("No se pudo crear la pre-alerta. Intenta de nuevo.");
+      return;
+    }
+
+    setPreAlerts([data, ...preAlerts]);
     setNewAlert({
       tracking_number: "",
       origin_city: "Miami EE.UU.",
@@ -244,9 +238,75 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
     toast.success("Pre-alerta creada exitosamente");
   };
 
-  const handleDeletePreAlert = (id: string) => {
+  const handleDeletePreAlert = async (id: string) => {
+    const { error } = await supabase
+      .from("prealertas")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error eliminando pre-alerta:", error);
+      toast.error("No se pudo eliminar la pre-alerta");
+      return;
+    }
+
     setPreAlerts(preAlerts.filter(alert => alert.id !== id));
     toast.success("Pre-alerta eliminada");
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileForm.nombre || !profileForm.documento || !profileForm.telefono ||
+        !profileForm.direccion || !profileForm.direccion_tipo || !profileForm.ciudad ||
+        !profileForm.departamento || !profileForm.codigo_postal) {
+      toast.error("Por favor completa todos los campos obligatorios");
+      return;
+    }
+
+    setIsSavingProfile(true);
+
+    const { data, error } = await supabase
+      .from("clientes")
+      .update({
+        nombre: profileForm.nombre,
+        razon_social: profileForm.razon_social,
+        documento: profileForm.documento,
+        telefono: profileForm.telefono,
+        direccion: profileForm.direccion,
+        direccion_tipo: profileForm.direccion_tipo,
+        ciudad: profileForm.ciudad,
+        departamento: profileForm.departamento,
+        codigo_postal: profileForm.codigo_postal,
+      })
+      .eq("id", user.id)
+      .select()
+      .single();
+
+    setIsSavingProfile(false);
+
+    if (error || !data) {
+      console.error("Error actualizando perfil:", error);
+      toast.error("No se pudo actualizar tu información. Intenta de nuevo.");
+      return;
+    }
+
+    onUpdateUser(data);
+    setIsEditingProfile(false);
+    toast.success("Tus datos se actualizaron correctamente");
+  };
+
+  const handleCancelEditProfile = () => {
+    setProfileForm({
+      nombre: user.nombre || "",
+      razon_social: user.razon_social || "",
+      documento: user.documento || "",
+      telefono: user.telefono || "",
+      direccion: user.direccion || "",
+      direccion_tipo: user.direccion_tipo || "",
+      ciudad: user.ciudad || "",
+      departamento: user.departamento || "",
+      codigo_postal: user.codigo_postal || "",
+    });
+    setIsEditingProfile(false);
   };
 
   const getStatusBadge = (status: string) => {
@@ -255,9 +315,18 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
       received: { label: "Recibido", className: "bg-secondary/20 text-secondary border-secondary/40" },
       processed: { label: "Procesado", className: "bg-green-500/20 text-green-400 border-green-500/40" },
     };
-    
+
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
     return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
+  };
+
+  const formatDate = (value: string) => {
+    if (!value) return "";
+    try {
+      return new Date(value).toLocaleDateString("es-CO", { year: "numeric", month: "short", day: "numeric" });
+    } catch {
+      return value;
+    }
   };
 
   return (
@@ -272,13 +341,13 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
           <div className="flex justify-between items-center p-6 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20">
             <div>
               <h2 className="text-primary mb-1" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
-                Bienvenido, {user.name}
+                Bienvenido, {user.nombre}
               </h2>
               <p className="text-muted-foreground">{user.email}</p>
-              <p className="text-muted-foreground">{user.city}</p>
-              {user.casillero && (
+              <p className="text-muted-foreground">{user.ciudad}</p>
+              {user.numero_casillero && (
                 <p className="text-primary mt-2" style={{ fontWeight: 600 }}>
-                  Tu Casillero: {user.casillero}
+                  Tu Casillero: {user.numero_casillero}
                 </p>
               )}
             </div>
@@ -298,26 +367,29 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <Tabs defaultValue="tracking" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="tracking" className="flex items-center gap-2">
+          <Tabs defaultValue="packages" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-8">
+              <TabsTrigger value="packages" className="flex items-center gap-2">
                 <Package size={18} />
-                Mis Envíos
+                Mis Paquetes
               </TabsTrigger>
               <TabsTrigger value="prealerts" className="flex items-center gap-2">
                 <Bell size={18} />
                 Pre-Alertas
               </TabsTrigger>
+              <TabsTrigger value="profile" className="flex items-center gap-2">
+                <User size={18} />
+                Mi Perfil
+              </TabsTrigger>
             </TabsList>
 
-            {/* Tab: Mis Envíos */}
-            <TabsContent value="tracking" className="space-y-8">
-              {/* Tracking Search */}
+            {/* Tab: Mis Paquetes (búsqueda + historial real, unificado) */}
+            <TabsContent value="packages" className="space-y-8">
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle>Rastrear Envío</CardTitle>
+                  <CardTitle>Rastrear un Envío</CardTitle>
                   <CardDescription>
-                    Ingresa tu número de guía para rastrear tu paquete
+                    Ingresa tu número de guía para ver el detalle paso a paso
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -326,7 +398,7 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                       <Label htmlFor="tracking">Número de Tracking</Label>
                       <Input
                         id="tracking"
-                        placeholder="Ej: RHI2025001"
+                        placeholder="Ej: 1Z999AA10123456784"
                         className="bg-input-background"
                         value={trackingNumber}
                         onChange={(e) => setTrackingNumber(e.target.value)}
@@ -343,50 +415,13 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                       </Button>
                     </div>
                   </div>
-
-                  {/* Tracking numbers demo */}
-                  <div className="mt-4 p-4 rounded-lg bg-muted/50">
-                    <p className="text-muted-foreground mb-2" style={{ fontSize: '0.875rem' }}>
-                      <strong>Números de prueba:</strong>
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {mockShipments.map((shipment) => (
-                        <button
-                          key={shipment.tracking}
-                          onClick={() => {
-                            setTrackingNumber(shipment.tracking);
-                            setSelectedShipment({...shipment, isPreAlert: false});
-                          }}
-                          className="px-3 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                          style={{ fontSize: '0.875rem' }}
-                        >
-                          {shipment.tracking}
-                        </button>
-                      ))}
-                      {preAlerts.map((alert) => (
-                        <button
-                          key={alert.tracking_number}
-                          onClick={() => {
-                            setTrackingNumber(alert.tracking_number);
-                            handleSearch();
-                          }}
-                          className="px-3 py-1 rounded-lg bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors"
-                          style={{ fontSize: '0.875rem' }}
-                        >
-                          {alert.tracking_number}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
 
-              {/* Tracking Timeline */}
               {selectedShipment && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
                 >
                   <Card className="bg-card border-border">
                     <CardHeader>
@@ -418,7 +453,6 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
 
                           return (
                             <div key={step.id} className="relative">
-                              {/* Vertical Line */}
                               {index < trackingSteps.length - 1 && (
                                 <div
                                   className={`absolute left-6 top-12 w-0.5 h-16 ${
@@ -429,7 +463,6 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                                 />
                               )}
 
-                              {/* Step */}
                               <div className="flex items-start gap-4 mb-8 relative">
                                 <div
                                   className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
@@ -485,11 +518,82 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                   </Card>
                 </motion.div>
               )}
+
+              {/* Historial completo de paquetes reales */}
+              <div className="space-y-4">
+                <h3 style={{ fontWeight: 600, fontSize: '1.125rem' }}>
+                  Historial de Paquetes ({myPackages.length})
+                </h3>
+
+                {isLoadingPackages ? (
+                  <Card className="bg-card border-border">
+                    <CardContent className="py-12 text-center">
+                      <p className="text-muted-foreground">Cargando tus paquetes...</p>
+                    </CardContent>
+                  </Card>
+                ) : myPackages.length === 0 ? (
+                  <Card className="bg-card border-border">
+                    <CardContent className="py-12 text-center">
+                      <Truck className="mx-auto mb-4 text-muted-foreground" size={48} />
+                      <p className="text-muted-foreground">
+                        Todavía no tienes paquetes registrados con nosotros.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  myPackages.map((pkg) => (
+                    <Card
+                      key={pkg.id}
+                      className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setTrackingNumber(pkg.tracking_number);
+                        setSelectedShipment({
+                          tracking: pkg.tracking_number,
+                          status: pkg.estado,
+                          currentStep: stepMap[pkg.estado] || 1,
+                          origin: pkg.origen,
+                          destination: "Bogotá, Colombia",
+                          estimatedDelivery: pkg.fecha_estimada || "Por confirmar",
+                          description: pkg.descripcion,
+                          isPreAlert: false,
+                        });
+                      }}
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 style={{ fontWeight: 600 }}>{pkg.descripcion || pkg.tracking_number}</h4>
+                            <p className="text-muted-foreground" style={{ fontSize: '0.875rem' }}>
+                              Tracking: {pkg.tracking_number}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                            {pkg.estado}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mt-4">
+                          <div>
+                            <p className="text-muted-foreground mb-1">Origen</p>
+                            <p className="text-foreground" style={{ fontWeight: 500 }}>{pkg.origen}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">Fecha de Envío</p>
+                            <p className="text-foreground" style={{ fontWeight: 500 }}>{formatDate(pkg.fecha_envio) || "Por confirmar"}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-1">Entrega Estimada</p>
+                            <p className="text-foreground" style={{ fontWeight: 500 }}>{formatDate(pkg.fecha_estimada) || "Por confirmar"}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
             </TabsContent>
 
             {/* Tab: Pre-Alertas */}
             <TabsContent value="prealerts" className="space-y-8">
-              {/* Create Pre-Alert Button */}
               {!isCreatingAlert && (
                 <div className="flex justify-end">
                   <Button
@@ -502,7 +606,6 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                 </div>
               )}
 
-              {/* Create Pre-Alert Form */}
               {isCreatingAlert && (
                 <Card className="bg-card border-border border-primary/40">
                   <CardHeader>
@@ -617,13 +720,13 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                         {newAlert.insured_value && parseFloat(newAlert.insured_value) > 0 && (() => {
                           const insuredVal = parseFloat(newAlert.insured_value);
                           let insuranceCost = 0;
-                          
+
                           if (newAlert.service === "Courier") {
                             insuranceCost = insuredVal <= 100 ? 3 : insuredVal * 0.04;
                           } else {
                             insuranceCost = insuredVal <= 200 ? 6 : insuredVal * 0.04;
                           }
-                          
+
                           return (
                             <p className="text-xs text-muted-foreground">
                               Costo seguro: ${insuranceCost.toFixed(2)} USD
@@ -661,10 +764,11 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                     <div className="flex gap-3 pt-4">
                       <Button
                         onClick={handleCreatePreAlert}
+                        disabled={isSavingAlert}
                         className="bg-primary text-primary-foreground hover:bg-primary/90"
                       >
                         <Plus className="mr-2" size={18} />
-                        Crear Pre-Alerta
+                        {isSavingAlert ? "Guardando..." : "Crear Pre-Alerta"}
                       </Button>
                       <Button
                         onClick={() => {
@@ -690,13 +794,18 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                 </Card>
               )}
 
-              {/* Pre-Alerts List */}
               <div className="space-y-4">
                 <h3 style={{ fontWeight: 600, fontSize: '1.125rem' }}>
                   Mis Pre-Alertas ({preAlerts.length})
                 </h3>
 
-                {preAlerts.length === 0 ? (
+                {isLoadingAlerts ? (
+                  <Card className="bg-card border-border">
+                    <CardContent className="py-12 text-center">
+                      <p className="text-muted-foreground">Cargando tus pre-alertas...</p>
+                    </CardContent>
+                  </Card>
+                ) : preAlerts.length === 0 ? (
                   <Card className="bg-card border-border">
                     <CardContent className="py-12 text-center">
                       <Bell className="mx-auto mb-4 text-muted-foreground" size={48} />
@@ -715,9 +824,6 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                               <h4 style={{ fontWeight: 600 }}>{alert.description}</h4>
                               {getStatusBadge(alert.status)}
                             </div>
-                            <p className="text-muted-foreground" style={{ fontSize: '0.875rem' }}>
-                              ID: {alert.id}
-                            </p>
                           </div>
                           <div className="flex gap-2">
                             <Button
@@ -800,13 +906,13 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                           <div className="flex justify-between items-center text-sm">
                             <div>
                               <span className="text-muted-foreground">Creado: </span>
-                              <span className="text-foreground">{alert.created_at}</span>
+                              <span className="text-foreground">{formatDate(alert.created_at)}</span>
                             </div>
                             {alert.received_at && (
                               <div>
                                 <span className="text-muted-foreground">Recibido: </span>
                                 <span className="text-secondary" style={{ fontWeight: 500 }}>
-                                  {alert.received_at}
+                                  {formatDate(alert.received_at)}
                                 </span>
                               </div>
                             )}
@@ -817,6 +923,192 @@ export function CustomerTracking({ user, onLogout }: CustomerTrackingProps) {
                   ))
                 )}
               </div>
+            </TabsContent>
+
+            {/* Tab: Mi Perfil */}
+            <TabsContent value="profile" className="space-y-6">
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle>Mis Datos Personales</CardTitle>
+                      <CardDescription>
+                        Esta es la información que tenemos registrada para tus envíos
+                      </CardDescription>
+                    </div>
+                    {!isEditingProfile ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsEditingProfile(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <Pencil size={16} />
+                        Editar
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelEditProfile}
+                          className="flex items-center gap-2"
+                        >
+                          <X size={16} />
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={isSavingProfile}
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2"
+                        >
+                          <Save size={16} />
+                          {isSavingProfile ? "Guardando..." : "Guardar"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Datos de solo lectura */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b border-border">
+                    <div>
+                      <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Correo Electrónico</p>
+                      <p style={{ fontWeight: 500 }}>{user.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Número de Casillero</p>
+                      <p className="text-primary" style={{ fontWeight: 600 }}>{user.numero_casillero}</p>
+                    </div>
+                  </div>
+
+                  {!isEditingProfile ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Nombre Completo</p>
+                        <p style={{ fontWeight: 500 }}>{user.nombre || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Razón Social</p>
+                        <p style={{ fontWeight: 500 }}>{user.razon_social || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>CC o NIT</p>
+                        <p style={{ fontWeight: 500 }}>{user.documento || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Teléfono</p>
+                        <p style={{ fontWeight: 500 }}>{user.telefono || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Dirección</p>
+                        <p style={{ fontWeight: 500 }}>{user.direccion || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Bloque / Casa / Apto</p>
+                        <p style={{ fontWeight: 500 }}>{user.direccion_tipo || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Ciudad</p>
+                        <p style={{ fontWeight: 500 }}>{user.ciudad || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Departamento</p>
+                        <p style={{ fontWeight: 500 }}>{user.departamento || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1" style={{ fontSize: '0.875rem' }}>Código Postal</p>
+                        <p style={{ fontWeight: 500 }}>{user.codigo_postal || "-"}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-nombre">Nombre Completo *</Label>
+                        <Input
+                          id="profile-nombre"
+                          value={profileForm.nombre}
+                          onChange={(e) => setProfileForm({ ...profileForm, nombre: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-business">Razón Social (opcional)</Label>
+                        <Input
+                          id="profile-business"
+                          value={profileForm.razon_social}
+                          onChange={(e) => setProfileForm({ ...profileForm, razon_social: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-documento">CC o NIT *</Label>
+                        <Input
+                          id="profile-documento"
+                          inputMode="numeric"
+                          value={profileForm.documento}
+                          onChange={(e) => setProfileForm({ ...profileForm, documento: e.target.value.replace(/\D/g, '') })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-telefono">Teléfono *</Label>
+                        <Input
+                          id="profile-telefono"
+                          inputMode="numeric"
+                          value={profileForm.telefono}
+                          onChange={(e) => setProfileForm({ ...profileForm, telefono: e.target.value.replace(/\D/g, '') })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-direccion">Dirección *</Label>
+                        <Input
+                          id="profile-direccion"
+                          value={profileForm.direccion}
+                          onChange={(e) => setProfileForm({ ...profileForm, direccion: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-direccion-tipo">Bloque / Casa / Apto *</Label>
+                        <Input
+                          id="profile-direccion-tipo"
+                          value={profileForm.direccion_tipo}
+                          onChange={(e) => setProfileForm({ ...profileForm, direccion_tipo: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-ciudad">Ciudad *</Label>
+                        <Input
+                          id="profile-ciudad"
+                          value={profileForm.ciudad}
+                          onChange={(e) => setProfileForm({ ...profileForm, ciudad: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-departamento">Departamento *</Label>
+                        <Select
+                          value={profileForm.departamento}
+                          onValueChange={(value) => setProfileForm({ ...profileForm, departamento: value })}
+                        >
+                          <SelectTrigger id="profile-departamento">
+                            <SelectValue placeholder="Selecciona departamento" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departamentosColombia.map((dep) => (
+                              <SelectItem key={dep} value={dep}>{dep}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-postal">Código Postal *</Label>
+                        <Input
+                          id="profile-postal"
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={profileForm.codigo_postal}
+                          onChange={(e) => setProfileForm({ ...profileForm, codigo_postal: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </motion.div>

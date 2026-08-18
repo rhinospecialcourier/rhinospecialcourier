@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
 import { Mail, KeyRound, ArrowLeft } from "lucide-react";
+import { supabase } from "../../supabase";
 
 interface AuthModalProps {
   open: boolean;
@@ -28,6 +29,8 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
     country: "Colombia",
     postalCode: "",
     email: "",
+    password: "",
+    confirmPassword: "",
   });
 
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -37,47 +40,109 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
   const [enteredCode, setEnteredCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const users = JSON.parse(localStorage.getItem("rhinoUsers") || "[]");
-    const user = users.find((u: any) => u.email === loginData.email && u.password === loginData.password);
-    if (user) {
-      localStorage.setItem("rhinoCurrentUser", JSON.stringify(user));
-      onLogin(user);
-      toast.success("¡Bienvenido! Has iniciado sesión correctamente.");
-      onOpenChange(false);
-      setLoginData({ email: "", password: "" });
-    } else {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from("clientes")
+      .select("*")
+      .eq("email", loginData.email)
+      .eq("password", loginData.password)
+      .single();
+
+    setIsLoading(false);
+
+    if (error || !data) {
       toast.error("Correo o contraseña incorrectos");
+      return;
     }
+
+    onLogin(data);
+    toast.success("¡Bienvenido! Has iniciado sesión correctamente.");
+    onOpenChange(false);
+    setLoginData({ email: "", password: "" });
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!registerData.name || !registerData.document || !registerData.phone ||
         !registerData.address || !registerData.addressType || !registerData.city ||
-        !registerData.department || !registerData.postalCode || !registerData.email) {
-      toast.error("Por favor completa todos los campos");
+        !registerData.department || !registerData.postalCode || !registerData.email ||
+        !registerData.password) {
+      toast.error("Por favor completa todos los campos obligatorios");
       return;
     }
-    const users = JSON.parse(localStorage.getItem("rhinoUsers") || "[]");
-    if (users.find((u: any) => u.email === registerData.email)) {
+
+    if (registerData.password !== registerData.confirmPassword) {
+      toast.error("Las contraseñas no coinciden");
+      return;
+    }
+
+    if (registerData.password.length < 6) {
+      toast.error("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    setIsLoading(true);
+
+    const { data: existing } = await supabase
+      .from("clientes")
+      .select("id")
+      .eq("email", registerData.email);
+
+    if (existing && existing.length > 0) {
       toast.error("Este correo ya está registrado");
+      setIsLoading(false);
       return;
     }
-    const casillerNumber = `RHN${String(1000000 + users.length).padStart(7, '0')}`;
-    const newUser = {
-      id: Date.now().toString(),
-      ...registerData,
-      casillero: casillerNumber,
-      createdAt: new Date().toISOString(),
-    };
-    users.push(newUser);
-    localStorage.setItem("rhinoUsers", JSON.stringify(users));
-    localStorage.setItem("rhinoCurrentUser", JSON.stringify(newUser));
-    onLogin(newUser);
-    toast.success(`¡Registro exitoso! Tu número de casillero es: ${casillerNumber}`);
+
+    const { data: lastClient } = await supabase
+      .from("clientes")
+      .select("numero_casillero")
+      .order("numero_casillero", { ascending: false })
+      .limit(1);
+
+    let nextCasilleroNumber = 1218001;
+    if (lastClient && lastClient.length > 0 && lastClient[0].numero_casillero) {
+      const lastNumber = parseInt(lastClient[0].numero_casillero.replace("RHN", ""));
+      if (!isNaN(lastNumber)) {
+        nextCasilleroNumber = lastNumber + 1;
+      }
+    }
+    const casilleroNumber = `RHN${String(nextCasilleroNumber).padStart(7, '0')}`;
+
+    const { data, error } = await supabase
+      .from("clientes")
+      .insert([{
+        nombre: registerData.name,
+        razon_social: registerData.businessName,
+        documento: registerData.document,
+        telefono: registerData.phone,
+        email: registerData.email,
+        password: registerData.password,
+        direccion: registerData.address,
+        direccion_tipo: registerData.addressType,
+        ciudad: registerData.city,
+        departamento: registerData.department,
+        pais: registerData.country,
+        codigo_postal: registerData.postalCode,
+        numero_casillero: casilleroNumber,
+        estado_cuenta: "Activo"
+      }])
+      .select()
+      .single();
+
+    setIsLoading(false);
+
+    if (error || !data) {
+      toast.error("Error al registrar. Intenta de nuevo.");
+      return;
+    }
+
+    onLogin(data);
+    toast.success(`¡Registro exitoso! Tu número de casillero es: ${casilleroNumber}`);
     onOpenChange(false);
     setRegisterData({
       businessName: "",
@@ -91,14 +156,20 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
       country: "Colombia",
       postalCode: "",
       email: "",
+      password: "",
+      confirmPassword: "",
     });
   };
 
-  const handleSendRecoveryCode = (e: React.FormEvent) => {
+  const handleSendRecoveryCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    const users = JSON.parse(localStorage.getItem("rhinoUsers") || "[]");
-    const user = users.find((u: any) => u.email === recoveryEmail);
-    if (user) {
+    const { data } = await supabase
+      .from("clientes")
+      .select("id")
+      .eq("email", recoveryEmail)
+      .single();
+
+    if (data) {
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedCode(code);
       setRecoveryStep("code");
@@ -118,7 +189,7 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
     }
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 6) {
       toast.error("La contraseña debe tener al menos 6 caracteres");
@@ -128,22 +199,19 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
       toast.error("Las contraseñas no coinciden");
       return;
     }
-    const users = JSON.parse(localStorage.getItem("rhinoUsers") || "[]");
-    const userIndex = users.findIndex((u: any) => u.email === recoveryEmail);
-    if (userIndex !== -1) {
-      users[userIndex].password = newPassword;
-      localStorage.setItem("rhinoUsers", JSON.stringify(users));
-      toast.success("¡Contraseña actualizada exitosamente!");
-      setShowForgotPassword(false);
-      setRecoveryStep("email");
-      setRecoveryEmail("");
-      setGeneratedCode("");
-      setEnteredCode("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } else {
+
+    const { error } = await supabase
+      .from("clientes")
+      .update({ password: newPassword })
+      .eq("email", recoveryEmail);
+
+    if (error) {
       toast.error("Error al cambiar la contraseña");
+      return;
     }
+
+    toast.success("¡Contraseña actualizada exitosamente!");
+    resetRecoveryFlow();
   };
 
   const resetRecoveryFlow = () => {
@@ -209,8 +277,8 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                    Ingresar
+                  <Button type="submit" disabled={isLoading} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                    {isLoading ? "Ingresando..." : "Ingresar"}
                   </Button>
 
                   <Button
@@ -241,7 +309,7 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-name">Nombre Completo</Label>
+                      <Label htmlFor="register-name">Nombre Completo *</Label>
                       <Input
                         id="register-name"
                         placeholder="Nombre completo"
@@ -253,26 +321,28 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-document">CC o NIT</Label>
+                      <Label htmlFor="register-document">CC o NIT *</Label>
                       <Input
                         id="register-document"
+                        inputMode="numeric"
                         placeholder="Número de documento"
                         className="bg-input-background"
                         value={registerData.document}
-                        onChange={(e) => setRegisterData({ ...registerData, document: e.target.value })}
+                        onChange={(e) => setRegisterData({ ...registerData, document: e.target.value.replace(/\D/g, '') })}
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-phone">Teléfono</Label>
+                      <Label htmlFor="register-phone">Teléfono *</Label>
                       <Input
                         id="register-phone"
                         type="tel"
-                        placeholder="+57 300 123 4567"
+                        inputMode="numeric"
+                        placeholder="3001234567"
                         className="bg-input-background"
                         value={registerData.phone}
-                        onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
+                        onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value.replace(/\D/g, '') })}
                         required
                       />
                     </div>
@@ -288,7 +358,7 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-department">Departamento</Label>
+                      <Label htmlFor="register-department">Departamento *</Label>
                       <Select value={registerData.department} onValueChange={(value) => setRegisterData({ ...registerData, department: value })}>
                         <SelectTrigger id="register-department" className="bg-input-background">
                           <SelectValue placeholder="Seleccionar departamento" />
@@ -320,7 +390,7 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                           <SelectItem value="Putumayo">Putumayo</SelectItem>
                           <SelectItem value="Quindío">Quindío</SelectItem>
                           <SelectItem value="Risaralda">Risaralda</SelectItem>
-                          <SelectItem value="San Andrés, Providencia y Santa Catalina">San Andrés, Providencia y Santa Catalina</SelectItem>
+                          <SelectItem value="San Andrés">San Andrés</SelectItem>
                           <SelectItem value="Santander">Santander</SelectItem>
                           <SelectItem value="Sucre">Sucre</SelectItem>
                           <SelectItem value="Tolima">Tolima</SelectItem>
@@ -332,7 +402,7 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-city">Ciudad</Label>
+                      <Label htmlFor="register-city">Ciudad *</Label>
                       <Input
                         id="register-city"
                         placeholder="Ciudad"
@@ -344,7 +414,7 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-address">Dirección</Label>
+                      <Label htmlFor="register-address">Dirección *</Label>
                       <Input
                         id="register-address"
                         placeholder="Dirección completa"
@@ -356,7 +426,7 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-address-type">Bloque, Casa, Apartamento, etc.</Label>
+                      <Label htmlFor="register-address-type">Bloque, Casa, Apartamento, etc. *</Label>
                       <Input
                         id="register-address-type"
                         placeholder="Ej: Apto 301, Casa 12, Bloque B"
@@ -368,19 +438,21 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-postal">Código Postal</Label>
+                      <Label htmlFor="register-postal">Código Postal *</Label>
                       <Input
                         id="register-postal"
+                        inputMode="numeric"
+                        maxLength={6}
                         placeholder="Ej: 110111"
                         className="bg-input-background"
                         value={registerData.postalCode}
-                        onChange={(e) => setRegisterData({ ...registerData, postalCode: e.target.value })}
+                        onChange={(e) => setRegisterData({ ...registerData, postalCode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-email">Correo Electrónico</Label>
+                      <Label htmlFor="register-email">Correo Electrónico *</Label>
                       <Input
                         id="register-email"
                         type="email"
@@ -392,8 +464,42 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                       />
                     </div>
 
-                    <Button type="submit" className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
-                      Registrarse
+                    <div className="space-y-2">
+                      <Label htmlFor="register-password">Contraseña *</Label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                        <Input
+                          id="register-password"
+                          type="password"
+                          placeholder="Mínimo 6 caracteres"
+                          className="bg-input-background pl-10"
+                          value={registerData.password}
+                          onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                          required
+                          minLength={6}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="register-confirm-password">Confirmar Contraseña *</Label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                        <Input
+                          id="register-confirm-password"
+                          type="password"
+                          placeholder="Repite tu contraseña"
+                          className="bg-input-background pl-10"
+                          value={registerData.confirmPassword}
+                          onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
+                          required
+                          minLength={6}
+                        />
+                      </div>
+                    </div>
+
+                    <Button type="submit" disabled={isLoading} className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
+                      {isLoading ? "Registrando..." : "Registrarse"}
                     </Button>
                   </form>
                 </div>

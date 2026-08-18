@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 export function WhatsAppButton() {
   const handleWhatsAppClick = () => {
     // Número de WhatsApp - ajusta según tu número real
-    window.open("https://wa.me/573204775878?text=Hola%2C%20necesito%20información%20sobre%20sus%20servicios%20de%20courier", "_blank");
+    window.open("https://wa.me/573107767143?text=Hola%2C%20necesito%20información%20sobre%20sus%20servicios%20de%20courier", "_blank");
   };
 
   return (

@@ -54,12 +54,12 @@ export function Locations({ onBack }: LocationsProps) {
           </div>
 
           <div className="space-y-6">
-            {/* United States to Colombia */}
+            {/* Estados Unidos a Colombia - Casillero Internacional / Courier */}
             <div className="p-6 rounded-xl bg-card border border-border">
               <div className="flex items-center gap-3 mb-4">
                 <div className="text-4xl">🇺🇸</div>
                 <h2 className="text-primary" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
-                  United States to Colombia
+                  Estados Unidos a Colombia - Casillero Internacional / Courier
                 </h2>
               </div>
               <div className="space-y-3 ml-13">
@@ -87,6 +87,49 @@ export function Locations({ onBack }: LocationsProps) {
                 <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
                   <p className="text-foreground text-sm">
                     <strong className="text-primary">Marcar el paquete:</strong> Nombre Cliente / Número de Casillero
+                  </p>
+                </div>
+                <div className="mt-4 p-3 rounded-lg bg-green-900/20 border border-green-600/30">
+                  <div className="flex items-center gap-2">
+                    <Plane className="text-green-500 flex-shrink-0" size={18} />
+                    <p className="text-green-400 text-sm">
+                      <strong>Tiempo de importación y entrega:</strong> 5-7 días
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* United States to Colombia - Carga Comercial */}
+            <div className="p-6 rounded-xl bg-card border border-border">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="text-4xl">🇺🇸</div>
+                <h2 className="text-primary" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
+                  Estados Unidos a Colombia - Carga Comercial
+                </h2>
+              </div>
+              <div className="space-y-3 ml-13">
+                <div className="flex items-start gap-2">
+                  <MapPin className="text-muted-foreground mt-1 flex-shrink-0" size={18} />
+                  <div>
+                    <p className="text-foreground">5141 NW 49TH AVENUE UNIT 30C</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="text-muted-foreground flex-shrink-0" size={18} />
+                  <a href="tel:+17862660324" className="text-primary hover:underline">
+                    +1 786 266 0324
+                  </a>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Clock className="text-muted-foreground mt-1 flex-shrink-0" size={18} />
+                  <div>
+                    <p className="text-foreground" style={{ fontWeight: 600 }}>Horario:</p>
+                    <p className="text-muted-foreground">Lunes a Viernes: 9:00 – 16:30</p>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <p className="text-foreground text-sm">
+                    <strong className="text-primary">Marcar el paquete:</strong> RHINO SPECIAL / DL-00199
                   </p>
                 </div>
                 <div className="mt-4 p-3 rounded-lg bg-green-900/20 border border-green-600/30">

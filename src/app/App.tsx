@@ -20,15 +20,20 @@ import { AuthModal } from "./components/AuthModal";
 import { CustomerTracking } from "./components/CustomerTracking";
 import { WhatsAppButton } from "./components/WhatsAppButton";
 import { RecommendedStores } from "./components/RecommendedStores";
+import { AdminLogin } from "./components/AdminLogin";
+import { AdminPanel } from "./components/AdminPanel";
+import { supabase } from "../supabase";
 
-type Page = 'home' | 'about' | 'terms' | 'privacy' | 'customs' | 'locations' | 'tracking' | 'stores';
+type Page = 'home' | 'about' | 'terms' | 'privacy' | 'customs' | 'locations' | 'tracking' | 'stores' | 'admin';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [adminSession, setAdminSession] = useState<any>(null);
+  const [checkingAdminSession, setCheckingAdminSession] = useState(true);
 
-  // Check if user is already logged in
+  // Check if user is already logged in (cliente)
   useEffect(() => {
     const savedUser = localStorage.getItem("rhinoCurrentUser");
     if (savedUser) {
@@ -36,15 +41,49 @@ export default function App() {
     }
   }, []);
 
+  // Detectar acceso al panel admin vía URL (ej: tusitio.com/#admin)
+  useEffect(() => {
+    if (window.location.hash === '#admin') {
+      setCurrentPage('admin');
+    }
+  }, []);
+
+  // Revisar si ya hay una sesión de administrador activa (Supabase Auth)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setAdminSession(data.session);
+      setCheckingAdminSession(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAdminSession(session);
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
   const handleLogin = (user: any) => {
     setCurrentUser(user);
+    localStorage.setItem("rhinoCurrentUser", JSON.stringify(user));
     setCurrentPage('tracking');
+  };
+
+  const handleUpdateUser = (updatedUser: any) => {
+    setCurrentUser(updatedUser);
+    localStorage.setItem("rhinoCurrentUser", JSON.stringify(updatedUser));
   };
 
   const handleLogout = () => {
     localStorage.removeItem("rhinoCurrentUser");
     setCurrentUser(null);
     setCurrentPage('home');
+  };
+
+  const handleAdminLogout = () => {
+    setCurrentPage('home');
+    window.location.hash = '';
   };
 
   const handleNavigate = (page: string) => {
@@ -54,13 +93,37 @@ export default function App() {
 
   const handleOpenAuth = () => {
     if (currentUser) {
-      // If already logged in, go to tracking
       setCurrentPage('tracking');
     } else {
-      // Otherwise, open login modal
       setAuthModalOpen(true);
     }
   };
+
+  // Panel de administrador
+  if (currentPage === 'admin') {
+    if (checkingAdminSession) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <p className="text-muted-foreground">Cargando...</p>
+          <Toaster />
+        </div>
+      );
+    }
+    if (!adminSession) {
+      return (
+        <>
+          <AdminLogin onLoginSuccess={() => {}} />
+          <Toaster />
+        </>
+      );
+    }
+    return (
+      <>
+        <AdminPanel onLogout={handleAdminLogout} />
+        <Toaster />
+      </>
+    );
+  }
 
   // Render different pages
   if (currentPage === 'about') {
@@ -139,7 +202,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Navbar onOpenAuth={handleOpenAuth} />
-        <CustomerTracking user={currentUser} onLogout={handleLogout} />
+        <CustomerTracking user={currentUser} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />
         <Footer onNavigate={handleNavigate} />
         <WhatsAppButton />
         <Toaster />
