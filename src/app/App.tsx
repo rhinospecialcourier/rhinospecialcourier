@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Toaster } from "./components/ui/sonner";
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
@@ -11,20 +11,32 @@ import { Testimonials } from "./components/Testimonials";
 import { FAQ } from "./components/FAQ";
 import { Contact } from "./components/Contact";
 import { Footer } from "./components/Footer";
-import { AboutUs } from "./components/AboutUs";
-import { Terms } from "./components/Terms";
-import { Privacy } from "./components/Privacy";
-import { CustomsManagement } from "./components/CustomsManagement";
-import { Locations } from "./components/Locations";
-import { AuthModal } from "./components/AuthModal";
-import { CustomerTracking } from "./components/CustomerTracking";
 import { WhatsAppButton } from "./components/WhatsAppButton";
-import { RecommendedStores } from "./components/RecommendedStores";
-import { AdminLogin } from "./components/AdminLogin";
-import { AdminPanel } from "./components/AdminPanel";
 import { supabase } from "../supabase";
 
+// Carga diferida: estas partes solo se descargan cuando el visitante realmente las necesita
+// (no todas de una vez con la página principal), lo que hace la carga inicial más rápida.
+const AboutUs = lazy(() => import("./components/AboutUs").then(m => ({ default: m.AboutUs })));
+const Terms = lazy(() => import("./components/Terms").then(m => ({ default: m.Terms })));
+const Privacy = lazy(() => import("./components/Privacy").then(m => ({ default: m.Privacy })));
+const CustomsManagement = lazy(() => import("./components/CustomsManagement").then(m => ({ default: m.CustomsManagement })));
+const Locations = lazy(() => import("./components/Locations").then(m => ({ default: m.Locations })));
+const RecommendedStores = lazy(() => import("./components/RecommendedStores").then(m => ({ default: m.RecommendedStores })));
+const AuthModal = lazy(() => import("./components/AuthModal").then(m => ({ default: m.AuthModal })));
+const CustomerTracking = lazy(() => import("./components/CustomerTracking").then(m => ({ default: m.CustomerTracking })));
+const AdminLogin = lazy(() => import("./components/AdminLogin").then(m => ({ default: m.AdminLogin })));
+const AdminPanel = lazy(() => import("./components/AdminPanel").then(m => ({ default: m.AdminPanel })));
+
 type Page = 'home' | 'about' | 'terms' | 'privacy' | 'customs' | 'locations' | 'tracking' | 'stores' | 'admin';
+
+// Pantalla simple mientras se descarga una sección (panel admin, panel cliente, etc.)
+function SectionLoading() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <p className="text-muted-foreground">Cargando...</p>
+    </div>
+  );
+}
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -111,17 +123,17 @@ export default function App() {
     }
     if (!adminSession) {
       return (
-        <>
+        <Suspense fallback={<SectionLoading />}>
           <AdminLogin onLoginSuccess={() => {}} />
           <Toaster />
-        </>
+        </Suspense>
       );
     }
     return (
-      <>
+      <Suspense fallback={<SectionLoading />}>
         <AdminPanel onLogout={handleAdminLogout} />
         <Toaster />
-      </>
+      </Suspense>
     );
   }
 
@@ -130,7 +142,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Navbar onOpenAuth={handleOpenAuth} />
-        <AboutUs onBack={() => handleNavigate('home')} />
+        <Suspense fallback={<SectionLoading />}>
+          <AboutUs onBack={() => handleNavigate('home')} />
+        </Suspense>
         <Footer onNavigate={handleNavigate} />
         <WhatsAppButton />
         <Toaster />
@@ -142,7 +156,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Navbar onOpenAuth={handleOpenAuth} />
-        <Terms onBack={() => handleNavigate('home')} />
+        <Suspense fallback={<SectionLoading />}>
+          <Terms onBack={() => handleNavigate('home')} />
+        </Suspense>
         <Footer onNavigate={handleNavigate} />
         <WhatsAppButton />
         <Toaster />
@@ -154,7 +170,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Navbar onOpenAuth={handleOpenAuth} />
-        <Privacy onBack={() => handleNavigate('home')} />
+        <Suspense fallback={<SectionLoading />}>
+          <Privacy onBack={() => handleNavigate('home')} />
+        </Suspense>
         <Footer onNavigate={handleNavigate} />
         <WhatsAppButton />
         <Toaster />
@@ -166,7 +184,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Navbar onOpenAuth={handleOpenAuth} />
-        <CustomsManagement onBack={() => handleNavigate('home')} />
+        <Suspense fallback={<SectionLoading />}>
+          <CustomsManagement onBack={() => handleNavigate('home')} />
+        </Suspense>
         <Footer onNavigate={handleNavigate} />
         <WhatsAppButton />
         <Toaster />
@@ -178,7 +198,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Navbar onOpenAuth={handleOpenAuth} />
-        <Locations onBack={() => handleNavigate('home')} />
+        <Suspense fallback={<SectionLoading />}>
+          <Locations onBack={() => handleNavigate('home')} />
+        </Suspense>
         <Footer onNavigate={handleNavigate} />
         <WhatsAppButton />
         <Toaster />
@@ -190,7 +212,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Navbar onOpenAuth={handleOpenAuth} />
-        <RecommendedStores onBack={() => handleNavigate('home')} />
+        <Suspense fallback={<SectionLoading />}>
+          <RecommendedStores onBack={() => handleNavigate('home')} />
+        </Suspense>
         <Footer onNavigate={handleNavigate} />
         <WhatsAppButton />
         <Toaster />
@@ -202,7 +226,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <Navbar onOpenAuth={handleOpenAuth} />
-        <CustomerTracking user={currentUser} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />
+        <Suspense fallback={<SectionLoading />}>
+          <CustomerTracking user={currentUser} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />
+        </Suspense>
         <Footer onNavigate={handleNavigate} />
         <WhatsAppButton />
         <Toaster />
@@ -224,11 +250,15 @@ export default function App() {
       <FAQ />
       <Contact />
       <Footer onNavigate={handleNavigate} />
-      <AuthModal
-        open={authModalOpen}
-        onOpenChange={setAuthModalOpen}
-        onLogin={handleLogin}
-      />
+      {authModalOpen && (
+        <Suspense fallback={null}>
+          <AuthModal
+            open={authModalOpen}
+            onOpenChange={setAuthModalOpen}
+            onLogin={handleLogin}
+          />
+        </Suspense>
+      )}
       <WhatsAppButton />
       <Toaster />
     </div>
