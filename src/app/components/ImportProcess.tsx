@@ -11,7 +11,7 @@ const steps = [
   {
     icon: ShoppingCart,
     title: "Compra Online",
-    description: "Compra en tu tienda favorita de USA, España y China o cualquier país.",
+    description: "Compra en tu tienda favorita de USA, España, China y Panamá.",
     step: "02"
   },
   {

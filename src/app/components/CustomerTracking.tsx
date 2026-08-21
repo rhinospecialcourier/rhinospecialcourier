@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
-import { Package, MapPin, Plane, Building2, Truck, CheckCircle2, Search, Bell, Plus, Trash2, User, Pencil, Save, X } from "lucide-react";
+import { Package, MapPin, Plane, Building2, Truck, CheckCircle2, Search, Bell, Plus, Trash2, User, Pencil, Save, X, Phone, Clock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../../supabase";
 
@@ -45,6 +45,92 @@ const stepMap: Record<string, number> = {
   "En Ruta": 6,
   "Entregado": 7,
 };
+
+const sedes = [
+  {
+    flag: "🇺🇸",
+    title: "Estados Unidos - Casillero Internacional / Courier",
+    address: ["10900 NW 21st Suite 220", "Doral, FL", "ZP 33172"],
+    phone: "+1 786 845 9180",
+    phoneHref: "tel:+17868459180",
+    schedule: ["Lunes a Viernes: 9:00 – 16:30"],
+    marking: "Nombre Cliente / Número de Casillero",
+    delivery: "5-7 días",
+  },
+  {
+    flag: "🇺🇸",
+    title: "Estados Unidos - Carga Comercial",
+    address: ["5141 NW 49TH AVENUE UNIT 30C"],
+    phone: "+1 786 266 0324",
+    phoneHref: "tel:+17862660324",
+    schedule: ["Lunes a Viernes: 9:00 – 16:30"],
+    marking: "RHINO SPECIAL / DL-00199",
+    delivery: "5-7 días",
+  },
+  {
+    flag: "🇨🇳",
+    title: "China - Vía Aérea",
+    address: [
+      "广州市 天河区珠江新城 华强路3号富力盈力大厦南塔 2505",
+      "Room 2505, South Tower, R&F Yingli Building, No. 3 Huaqiang Road, Zhujiang New Town, Tianhe District",
+      "Guangzhou, China",
+      "ZP 510000",
+    ],
+    phone: "+1 592 010 4310",
+    phoneHref: "tel:+15920104310",
+    contact: "Green",
+    schedule: ["Lunes a Viernes: 9:00 – 16:30"],
+    marking: "MASA-NGR / Casillero / Nombre Cliente",
+    delivery: "15 días, sale cada viernes",
+  },
+  {
+    flag: "🇨🇳",
+    title: "China - Vía Marítima",
+    address: [
+      "义乌青口东苑工业区东山路33号",
+      "No. 33, Dongshan Road, Dongyuan Industrial Zone, Qingkou, Yiwu",
+      "Guangzhou, China",
+      "ZP 510000",
+    ],
+    phone: "+1 592 010 4310",
+    phoneHref: "tel:+15920104310",
+    contact: "Green",
+    schedule: ["Lunes a Viernes: 9:00 – 16:30"],
+    marking: "MASA-NGR / Casillero / Nombre Cliente",
+    delivery: "15 días, sale cada viernes",
+  },
+  {
+    flag: "🇪🇸",
+    title: "España",
+    address: ["Calle San Jaime 1", "28031, Madrid", "Oficina: HA009"],
+    company: "Anka Cargo Logistics S.L",
+    phone: "+34 606 510 862",
+    phoneHref: "tel:+34606510862",
+    schedule: ["Lunes a Jueves: 9:00–14:00 y 15:00–17:30", "Viernes: 9:30–14:30"],
+    marking: "Nombre Cliente",
+    delivery: "12 días, sale todos los viernes",
+  },
+  {
+    flag: "🇵🇦",
+    title: "Panamá",
+    address: ["Zona Libre de Colón", "Lote 2 manzana 33B Avenida Boyd", "Roosevelt, al lado de la bodega de Sirena"],
+    contact: "Jenny Matallana",
+    phone: "+507 6983 5118",
+    phoneHref: "tel:+50769835118",
+    phone2: "+507 474-6315 / 474-6316",
+    phone2Href: "tel:+5074746315",
+    marking: "Felipe++",
+    delivery: "12 días, sale todos los viernes",
+  },
+  {
+    flag: "🇨🇴",
+    title: "Colombia - Oficina Principal",
+    address: ["TV 93 # 53 - 32 INT 15", "Parque Empresarial El Dorado", "Bogotá, Colombia", "ZP 111071"],
+    phone: "+57 1 426 3000",
+    phoneHref: "tel:+5714263000",
+    schedule: ["Lunes a Viernes: 8:30 – 16:30"],
+  },
+];
 
 export function CustomerTracking({ user, onLogout, onUpdateUser }: CustomerTrackingProps) {
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -368,7 +454,7 @@ export function CustomerTracking({ user, onLogout, onUpdateUser }: CustomerTrack
           transition={{ delay: 0.1 }}
         >
           <Tabs defaultValue="packages" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-8">
+            <TabsList className="grid w-full grid-cols-4 mb-8">
               <TabsTrigger value="packages" className="flex items-center gap-2">
                 <Package size={18} />
                 Mis Paquetes
@@ -376,6 +462,10 @@ export function CustomerTracking({ user, onLogout, onUpdateUser }: CustomerTrack
               <TabsTrigger value="prealerts" className="flex items-center gap-2">
                 <Bell size={18} />
                 Pre-Alertas
+              </TabsTrigger>
+              <TabsTrigger value="sedes" className="flex items-center gap-2">
+                <MapPin size={18} />
+                Sedes
               </TabsTrigger>
               <TabsTrigger value="profile" className="flex items-center gap-2">
                 <User size={18} />
@@ -923,6 +1013,101 @@ export function CustomerTracking({ user, onLogout, onUpdateUser }: CustomerTrack
                   ))
                 )}
               </div>
+            </TabsContent>
+
+            {/* Tab: Sedes */}
+            <TabsContent value="sedes" className="space-y-4">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/20 border-2 border-secondary/50">
+                <div className="flex items-start gap-3 mb-2">
+                  <AlertCircle className="text-secondary flex-shrink-0 mt-1" size={20} />
+                  <h3 className="text-secondary" style={{ fontSize: '1rem', fontWeight: 700 }}>
+                    Instrucciones Importantes
+                  </h3>
+                </div>
+                <p className="text-foreground" style={{ fontSize: '0.875rem' }}>
+                  Para todos los paquetes, notifica el número de tracking, marca como se indica en cada sede, agrega tu número de casillero, contenido y valor declarado. Todo paquete debe ser pre-alertado.
+                </p>
+              </div>
+
+              {sedes.map((sede) => (
+                <Card key={sede.title} className="bg-card border-border">
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div style={{ fontSize: '1.75rem' }}>{sede.flag}</div>
+                      <CardTitle style={{ fontSize: '1.1rem' }}>{sede.title}</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {sede.address && (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="text-muted-foreground mt-1 flex-shrink-0" size={16} />
+                        <div>
+                          {sede.address.map((line, i) => (
+                            <p key={i} className={i === 0 ? "text-foreground" : "text-muted-foreground"} style={{ fontSize: '0.875rem' }}>
+                              {line}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {sede.company && (
+                      <div className="flex items-center gap-2">
+                        <Building2 className="text-muted-foreground flex-shrink-0" size={16} />
+                        <p className="text-foreground" style={{ fontSize: '0.875rem' }}>Empresa: {sede.company}</p>
+                      </div>
+                    )}
+                    {sede.contact && (
+                      <div className="flex items-center gap-2">
+                        <User className="text-muted-foreground flex-shrink-0" size={16} />
+                        <p className="text-foreground" style={{ fontSize: '0.875rem' }}>Contacto: {sede.contact}</p>
+                      </div>
+                    )}
+                    {sede.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="text-muted-foreground flex-shrink-0" size={16} />
+                        <a href={sede.phoneHref} className="text-primary hover:underline" style={{ fontSize: '0.875rem' }}>
+                          {sede.phone}
+                        </a>
+                      </div>
+                    )}
+                    {sede.phone2 && (
+                      <div className="flex items-center gap-2 ml-6">
+                        <a href={sede.phone2Href} className="text-primary hover:underline" style={{ fontSize: '0.875rem' }}>
+                          {sede.phone2}
+                        </a>
+                      </div>
+                    )}
+                    {sede.schedule && (
+                      <div className="flex items-start gap-2">
+                        <Clock className="text-muted-foreground mt-1 flex-shrink-0" size={16} />
+                        <div>
+                          <p className="text-foreground" style={{ fontWeight: 600, fontSize: '0.875rem' }}>Horario:</p>
+                          {sede.schedule.map((line, i) => (
+                            <p key={i} className="text-muted-foreground" style={{ fontSize: '0.875rem' }}>{line}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {sede.marking && (
+                      <div className="mt-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                        <p className="text-foreground" style={{ fontSize: '0.875rem' }}>
+                          <strong className="text-primary">Marcar el paquete:</strong> {sede.marking}
+                        </p>
+                      </div>
+                    )}
+                    {sede.delivery && (
+                      <div className="p-3 rounded-lg bg-green-900/20 border border-green-600/30">
+                        <div className="flex items-center gap-2">
+                          <Plane className="text-green-500 flex-shrink-0" size={16} />
+                          <p className="text-green-400" style={{ fontSize: '0.875rem' }}>
+                            <strong>Tiempo de importación y entrega:</strong> {sede.delivery}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
             </TabsContent>
 
             {/* Tab: Mi Perfil */}

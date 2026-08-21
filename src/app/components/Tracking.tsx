@@ -22,7 +22,7 @@ export function Tracking() {
     setIsLoading(true);
 
     const { data, error } = await supabase
-      .from("Paquetes")
+      .from("Paquetes") 
       .select("*")
       .ilike("tracking_number", trackingNumber)
       .single();

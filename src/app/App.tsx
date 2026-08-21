@@ -35,7 +35,7 @@ export default function App() {
 
   // Check if user is already logged in (cliente)
   useEffect(() => {
-    const savedUser = localStorage.getItem("rhinoCurrentUser");
+    const savedUser = sessionStorage.getItem("rhinoCurrentUser");
     if (savedUser) {
       setCurrentUser(JSON.parse(savedUser));
     }
@@ -66,17 +66,17 @@ export default function App() {
 
   const handleLogin = (user: any) => {
     setCurrentUser(user);
-    localStorage.setItem("rhinoCurrentUser", JSON.stringify(user));
+    sessionStorage.setItem("rhinoCurrentUser", JSON.stringify(user));
     setCurrentPage('tracking');
   };
 
   const handleUpdateUser = (updatedUser: any) => {
     setCurrentUser(updatedUser);
-    localStorage.setItem("rhinoCurrentUser", JSON.stringify(updatedUser));
+    sessionStorage.setItem("rhinoCurrentUser", JSON.stringify(updatedUser));
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("rhinoCurrentUser");
+    sessionStorage.removeItem("rhinoCurrentUser");
     setCurrentUser(null);
     setCurrentPage('home');
   };

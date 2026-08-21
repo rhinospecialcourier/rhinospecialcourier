@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Button } from "./ui/button";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Calculator as CalcIcon, DollarSign, Check, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
 
 export function Calculator() {
   const [modality, setModality] = useState("courier");
@@ -91,7 +92,14 @@ export function Calculator() {
     if (category === "cellphones") {
       if (city !== "miami") {
         // No se aceptan celulares desde España o China
-        alert("Lo sentimos, solo aceptamos envíos de celulares desde Miami, Estados Unidos.");
+        toast.error("Restricción de envío", {
+          description: "Lo sentimos, solo aceptamos envíos de celulares desde Miami, Estados Unidos.",
+          style: {
+            background: "#450a0a",
+            border: "1px solid #dc2626",
+            color: "#fca5a5",
+          },
+        });
         return;
       }
       // Para celulares desde Miami: tarifa fija de $45 USD sin otros cargos
@@ -424,12 +432,12 @@ export function Calculator() {
             EXPORTACIONES
           </h3>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            Para todas las exportaciones se cotiza bajo la información compartida, ten en cuenta que para exportación necesitamos <strong className="text-white">nombre del producto, cantidad, valor declarado, destino, medidas de empaque y foto</strong> para confirmar el ingreso del producto con las autoridades aduaneras correspondientes.
+            Para todas las exportaciones se cotiza bajo la información compartida, ten en cuenta que para exportación necesitamos: <strong className="text-white">país destino, código postal, ciudad, contenido, cantidad, valor declarado, destino, medidas de empaque y foto</strong> para confirmar el ingreso del producto con las autoridades aduaneras correspondientes.
           </p>
           <div className="text-center">
             <p className="text-muted-foreground mb-3">Cualquier duda o solicitud escríbenos:</p>
             <a 
-              href="https://wa.me/573107767143" 
+              href="https://wa.me/573107767143?text=Hola%2C%20tengo%20una%20consulta%20para%20realizar%20una%20exportaci%C3%B3n%20y%20es%20la%20siguiente%3A%20" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors"
@@ -493,7 +501,15 @@ export function Calculator() {
             {/* País de Origen */}
             <div className="space-y-2">
               <Label htmlFor="city" className="text-foreground">País de Origen</Label>
-              <Select value={city} onValueChange={setCity}>
+              <Select
+                value={city}
+                onValueChange={(value) => {
+                  setCity(value);
+                  if (value === "panama") {
+                    setModality("comercial");
+                  }
+                }}
+              >
                 <SelectTrigger id="city" className="bg-background/50 border-primary/30 h-12">
                   <SelectValue placeholder="Seleccionar país" />
                 </SelectTrigger>

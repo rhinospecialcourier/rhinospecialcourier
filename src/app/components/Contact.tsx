@@ -122,7 +122,7 @@ export function Contact() {
                   </div>
                   <div>
                     <h4 style={{ fontWeight: 600 }} className="mb-1">Oficina Principal</h4>
-                    <p className="text-muted-foreground">Calle 52B SUR # 24 - 45</p>
+                    <p className="text-muted-foreground">TV 93 # 53 - 32 INT 15</p>
                     <p className="text-muted-foreground">Bogotá, Colombia</p>
                   </div>
                 </div>
