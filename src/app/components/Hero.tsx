@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { Package, Zap, Shield, Clock } from "lucide-react";
 import { Button } from "./ui/button";
-import logo from "figma:asset/dfc188dfe9cc0d9611a29a33ee529e641d0b2ece.png";
+import logo from "./logo-rhino-optimizado.webp";
 
 export function Hero() {
   const scrollToSection = (id: string) => {
@@ -96,9 +96,8 @@ export function Hero() {
 
           {/* Right Content - Logo */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
+            initial={{ opacity: 1, scale: 1 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
             className="relative"
           >
             <motion.div
@@ -119,7 +118,11 @@ export function Hero() {
                 <img 
                   src={logo} 
                   alt="Rhino Courier" 
-                  className="w-full drop-shadow-2xl" 
+                  className="w-full drop-shadow-2xl"
+                  width={900}
+                  height={442}
+                  fetchPriority="high"
+                  loading="eager"
                 />
               </div>
             </motion.div>
