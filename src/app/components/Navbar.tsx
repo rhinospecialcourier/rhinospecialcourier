@@ -1,7 +1,7 @@
 import { Package, Menu, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState } from "react";
-import logo from "figma:asset/f761057a3aa56feaf3375313fa74e80c80aac082.png";
+import logo from "./logo-navbar.webp";
 
 interface NavbarProps {
   onOpenAuth: () => void;
@@ -22,7 +22,7 @@ export function Navbar({ onOpenAuth }: NavbarProps) {
         <div className="flex justify-between items-center h-20">
           {/* Logo */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection('hero')}>
-            <img src={logo} alt="Rhino Special Courier" className="h-16 w-auto object-contain" />
+            <img src={logo} alt="Rhino Special Courier" className="h-16 w-auto object-contain" width={520} height={256} />
           </div>
 
           {/* Desktop Menu */}
