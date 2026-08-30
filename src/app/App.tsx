@@ -15,7 +15,6 @@ import { WhatsAppButton } from "./components/WhatsAppButton";
 import { supabase } from "../supabase";
 
 // Carga diferida: estas partes solo se descargan cuando el visitante realmente las necesita
-// (no todas de una vez con la página principal), lo que hace la carga inicial más rápida.
 const AboutUs = lazy(() => import("./components/AboutUs").then(m => ({ default: m.AboutUs })));
 const Terms = lazy(() => import("./components/Terms").then(m => ({ default: m.Terms })));
 const Privacy = lazy(() => import("./components/Privacy").then(m => ({ default: m.Privacy })));
@@ -26,10 +25,10 @@ const AuthModal = lazy(() => import("./components/AuthModal").then(m => ({ defau
 const CustomerTracking = lazy(() => import("./components/CustomerTracking").then(m => ({ default: m.CustomerTracking })));
 const AdminLogin = lazy(() => import("./components/AdminLogin").then(m => ({ default: m.AdminLogin })));
 const AdminPanel = lazy(() => import("./components/AdminPanel").then(m => ({ default: m.AdminPanel })));
+const ResetPassword = lazy(() => import("./components/ResetPassword").then(m => ({ default: m.ResetPassword })));
 
-type Page = 'home' | 'about' | 'terms' | 'privacy' | 'customs' | 'locations' | 'tracking' | 'stores' | 'admin';
+type Page = 'home' | 'about' | 'terms' | 'privacy' | 'customs' | 'locations' | 'tracking' | 'stores' | 'admin' | 'reset-password';
 
-// Pantalla simple mientras se descarga una sección (panel admin, panel cliente, etc.)
 function SectionLoading() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -42,8 +41,9 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [adminSession, setAdminSession] = useState<any>(null);
-  const [checkingAdminSession, setCheckingAdminSession] = useState(true);
+  const [authSession, setAuthSession] = useState<any>(null);
+  const [isAdminSession, setIsAdminSession] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   // Check if user is already logged in (cliente)
   useEffect(() => {
@@ -53,22 +53,29 @@ export default function App() {
     }
   }, []);
 
-  // Detectar acceso al panel admin vía URL (ej: tusitio.com/#admin)
+  // Detectar qué página mostrar según la URL: /reset-password (ruta real) o #admin (hash)
   useEffect(() => {
-    if (window.location.hash === '#admin') {
+    if (window.location.pathname === '/reset-password') {
+      setCurrentPage('reset-password');
+    } else if (window.location.hash === '#admin') {
       setCurrentPage('admin');
     }
   }, []);
 
-  // Revisar si ya hay una sesión de administrador activa (Supabase Auth)
+  // Revisar la sesión de Supabase Auth y si corresponde a un administrador (por su etiqueta "role": "admin")
   useEffect(() => {
+    const checkSession = (session: any) => {
+      setAuthSession(session);
+      setIsAdminSession(session?.user?.user_metadata?.role === 'admin');
+    };
+
     supabase.auth.getSession().then(({ data }) => {
-      setAdminSession(data.session);
-      setCheckingAdminSession(false);
+      checkSession(data.session);
+      setCheckingSession(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAdminSession(session);
+      checkSession(session);
     });
 
     return () => {
@@ -87,7 +94,8 @@ export default function App() {
     sessionStorage.setItem("rhinoCurrentUser", JSON.stringify(updatedUser));
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     sessionStorage.removeItem("rhinoCurrentUser");
     setCurrentUser(null);
     setCurrentPage('home');
@@ -96,6 +104,11 @@ export default function App() {
   const handleAdminLogout = () => {
     setCurrentPage('home');
     window.location.hash = '';
+  };
+
+  const handleResetPasswordDone = () => {
+    window.history.replaceState({}, '', '/');
+    setCurrentPage('home');
   };
 
   const handleNavigate = (page: string) => {
@@ -111,9 +124,19 @@ export default function App() {
     }
   };
 
+  // Página de restablecer contraseña (viene del enlace del correo)
+  if (currentPage === 'reset-password') {
+    return (
+      <Suspense fallback={<SectionLoading />}>
+        <ResetPassword onDone={handleResetPasswordDone} />
+        <Toaster />
+      </Suspense>
+    );
+  }
+
   // Panel de administrador
   if (currentPage === 'admin') {
-    if (checkingAdminSession) {
+    if (checkingSession) {
       return (
         <div className="min-h-screen bg-background flex items-center justify-center">
           <p className="text-muted-foreground">Cargando...</p>
@@ -121,7 +144,8 @@ export default function App() {
         </div>
       );
     }
-    if (!adminSession) {
+    // Solo se considera sesión de administrador válida si el usuario tiene la etiqueta "role": "admin"
+    if (!authSession || !isAdminSession) {
       return (
         <Suspense fallback={<SectionLoading />}>
           <AdminLogin onLoginSuccess={() => {}} />

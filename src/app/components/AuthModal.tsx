@@ -6,8 +6,10 @@ import { Label } from "./ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
-import { Mail, KeyRound, ArrowLeft } from "lucide-react";
+import { Mail, KeyRound, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { supabase } from "../../supabase";
+
+const SITE_URL = "https://rhinospecialcourier.vercel.app";
 
 interface AuthModalProps {
   open: boolean;
@@ -34,32 +36,39 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
   });
 
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [recoveryStep, setRecoveryStep] = useState<"email" | "code" | "reset">("email");
   const [recoveryEmail, setRecoveryEmail] = useState("");
-  const [generatedCode, setGeneratedCode] = useState("");
-  const [enteredCode, setEnteredCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("clientes")
-      .select("*")
-      .eq("email", loginData.email)
-      .eq("password", loginData.password)
-      .single();
 
-    setIsLoading(false);
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: loginData.email,
+      password: loginData.password,
+    });
 
-    if (error || !data) {
+    if (authError || !authData.user) {
+      setIsLoading(false);
       toast.error("Correo o contraseña incorrectos");
       return;
     }
 
-    onLogin(data);
+    const { data: profile, error: profileError } = await supabase
+      .from("clientes")
+      .select("*")
+      .eq("email", loginData.email)
+      .single();
+
+    setIsLoading(false);
+
+    if (profileError || !profile) {
+      toast.error("No se encontró tu perfil. Contáctanos por WhatsApp para ayudarte.");
+      return;
+    }
+
+    onLogin(profile);
     toast.success("¡Bienvenido! Has iniciado sesión correctamente.");
     onOpenChange(false);
     setLoginData({ email: "", password: "" });
@@ -87,17 +96,23 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
 
     setIsLoading(true);
 
-    const { data: existing } = await supabase
-      .from("clientes")
-      .select("id")
-      .eq("email", registerData.email);
+    // Paso 1: crear el usuario en el sistema de autenticación de Supabase
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: registerData.email,
+      password: registerData.password,
+    });
 
-    if (existing && existing.length > 0) {
-      toast.error("Este correo ya está registrado");
+    if (authError) {
       setIsLoading(false);
+      if (authError.message.toLowerCase().includes("already registered") || authError.message.toLowerCase().includes("already exists")) {
+        toast.error("Este correo ya está registrado");
+      } else {
+        toast.error("Error al registrar. Intenta de nuevo.");
+      }
       return;
     }
 
+    // Paso 2: calcular el número de casillero consecutivo
     const { data: lastClient } = await supabase
       .from("clientes")
       .select("numero_casillero")
@@ -108,11 +123,12 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
     if (lastClient && lastClient.length > 0 && lastClient[0].numero_casillero) {
       const lastNumber = parseInt(lastClient[0].numero_casillero.replace("RHN", ""));
       if (!isNaN(lastNumber)) {
-        nextCasilleroNumber = lastNumber + 1;
+        nextCasilleroNumber = Math.max(lastNumber + 1, nextCasilleroNumber);
       }
     }
     const casilleroNumber = `RHN${String(nextCasilleroNumber).padStart(7, '0')}`;
 
+    // Paso 3: crear el perfil del cliente, vinculado por correo al usuario de Auth
     const { data, error } = await supabase
       .from("clientes")
       .insert([{
@@ -121,7 +137,6 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
         documento: registerData.document,
         telefono: registerData.phone,
         email: registerData.email,
-        password: registerData.password,
         direccion: registerData.address,
         direccion_tipo: registerData.addressType,
         ciudad: registerData.city,
@@ -137,7 +152,7 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
     setIsLoading(false);
 
     if (error || !data) {
-      toast.error("Error al registrar. Intenta de nuevo.");
+      toast.error("Tu cuenta se creó, pero hubo un problema guardando tu perfil. Contáctanos por WhatsApp.");
       return;
     }
 
@@ -161,67 +176,28 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
     });
   };
 
-  const handleSendRecoveryCode = async (e: React.FormEvent) => {
+  const handleSendRecoveryEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data } = await supabase
-      .from("clientes")
-      .select("id")
-      .eq("email", recoveryEmail)
-      .single();
+    setIsLoading(true);
 
-    if (data) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedCode(code);
-      setRecoveryStep("code");
-      toast.success(`Código enviado a ${recoveryEmail}. Código de prueba: ${code}`);
-    } else {
-      toast.error("No existe una cuenta con ese correo electrónico");
-    }
-  };
+    const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+      redirectTo: `${SITE_URL}/reset-password`,
+    });
 
-  const handleVerifyCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (enteredCode === generatedCode) {
-      setRecoveryStep("reset");
-      toast.success("Código verificado correctamente");
-    } else {
-      toast.error("Código incorrecto. Por favor verifica e intenta de nuevo.");
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPassword.length < 6) {
-      toast.error("La contraseña debe tener al menos 6 caracteres");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error("Las contraseñas no coinciden");
-      return;
-    }
-
-    const { error } = await supabase
-      .from("clientes")
-      .update({ password: newPassword })
-      .eq("email", recoveryEmail);
+    setIsLoading(false);
 
     if (error) {
-      toast.error("Error al cambiar la contraseña");
+      toast.error("No se pudo enviar el correo de recuperación. Intenta de nuevo.");
       return;
     }
 
-    toast.success("¡Contraseña actualizada exitosamente!");
-    resetRecoveryFlow();
+    setRecoveryEmailSent(true);
   };
 
   const resetRecoveryFlow = () => {
     setShowForgotPassword(false);
-    setRecoveryStep("email");
     setRecoveryEmail("");
-    setGeneratedCode("");
-    setEnteredCode("");
-    setNewPassword("");
-    setConfirmPassword("");
+    setRecoveryEmailSent(false);
   };
 
   return (
@@ -521,15 +497,15 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                 <DialogTitle className="text-primary">Recuperar Contraseña</DialogTitle>
               </div>
               <DialogDescription>
-                {recoveryStep === "email" && "Ingresa tu correo electrónico para recibir un código"}
-                {recoveryStep === "code" && "Ingresa el código de 6 dígitos que enviamos a tu correo"}
-                {recoveryStep === "reset" && "Ingresa tu nueva contraseña"}
+                {recoveryEmailSent
+                  ? "Revisa tu correo para continuar"
+                  : "Ingresa tu correo electrónico para recibir un enlace de recuperación"}
               </DialogDescription>
             </DialogHeader>
 
             <div className="mt-4">
-              {recoveryStep === "email" && (
-                <form onSubmit={handleSendRecoveryCode} className="space-y-4">
+              {!recoveryEmailSent ? (
+                <form onSubmit={handleSendRecoveryEmail} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="recovery-email">Correo Electrónico</Label>
                     <div className="relative">
@@ -545,78 +521,28 @@ export function AuthModal({ open, onOpenChange, onLogin }: AuthModalProps) {
                       />
                     </div>
                   </div>
-                  <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                    Enviar Código de Seguridad
+                  <Button type="submit" disabled={isLoading} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                    {isLoading ? "Enviando..." : "Enviar Enlace de Recuperación"}
                   </Button>
                 </form>
-              )}
-
-              {recoveryStep === "code" && (
-                <form onSubmit={handleVerifyCode} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="recovery-code">Código de 6 Dígitos</Label>
-                    <Input
-                      id="recovery-code"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]{6}"
-                      maxLength={6}
-                      placeholder="123456"
-                      className="bg-input-background text-center tracking-widest"
-                      style={{ fontSize: '1.5rem' }}
-                      value={enteredCode}
-                      onChange={(e) => setEnteredCode(e.target.value.replace(/\D/g, ""))}
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">Enviado a: {recoveryEmail}</p>
-                  </div>
-                  <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                    Verificar Código
+              ) : (
+                <div className="text-center space-y-4 py-4">
+                  <CheckCircle2 className="mx-auto text-primary" size={48} />
+                  <p className="text-foreground">
+                    Si el correo <strong>{recoveryEmail}</strong> está registrado, te enviamos un enlace para restablecer tu contraseña.
+                  </p>
+                  <p className="text-muted-foreground" style={{ fontSize: '0.875rem' }}>
+                    Revisa también tu carpeta de spam.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={resetRecoveryFlow}
+                  >
+                    Volver al inicio de sesión
                   </Button>
-                  <Button type="button" variant="ghost" className="w-full" onClick={() => setRecoveryStep("email")}>
-                    Volver a enviar código
-                  </Button>
-                </form>
-              )}
-
-              {recoveryStep === "reset" && (
-                <form onSubmit={handleResetPassword} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="new-password">Nueva Contraseña</Label>
-                    <div className="relative">
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                      <Input
-                        id="new-password"
-                        type="password"
-                        placeholder="Mínimo 6 caracteres"
-                        className="bg-input-background pl-10"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirmar Nueva Contraseña</Label>
-                    <div className="relative">
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        placeholder="Repite tu contraseña"
-                        className="bg-input-background pl-10"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90">
-                    Cambiar Contraseña
-                  </Button>
-                </form>
+                </div>
               )}
             </div>
           </>

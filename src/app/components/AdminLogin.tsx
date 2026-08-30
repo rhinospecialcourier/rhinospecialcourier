@@ -20,18 +20,28 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
     e.preventDefault();
     setIsLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    setIsLoading(false);
-
-    if (error) {
+    if (error || !data.session) {
+      setIsLoading(false);
       toast.error("Correo o contraseña incorrectos");
       return;
     }
 
+    // Solo se permite el acceso si el usuario tiene la etiqueta "role": "admin"
+    const isAdmin = data.session.user.user_metadata?.role === 'admin';
+
+    if (!isAdmin) {
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      toast.error("Esta cuenta no tiene permisos de administrador");
+      return;
+    }
+
+    setIsLoading(false);
     toast.success("Bienvenido al panel de administrador");
     onLoginSuccess();
   };
